@@ -17,6 +17,19 @@ const DEFAULT_EXTRACTED_SKILLS = {
 
 const ENTERPRISES = ['Google', 'Amazon', 'Microsoft', 'Meta', 'Infosys', 'TCS', 'Wipro', 'HCL', 'Accenture', 'Cognizant', 'IBM', 'Adobe', 'Oracle', 'Salesforce'];
 
+const TEST_CHECKLIST_SCHEMA = [
+    { id: 't1', label: 'JD required validation works', hint: 'Go to Job Analysis and try to analyze with empty JD.' },
+    { id: 't2', label: 'Short JD warning shows for <200 chars', hint: 'Paste a very short sentence in the JD and check for amber warning.' },
+    { id: 't3', label: 'Skills extraction groups correctly', hint: 'Paste "React, Java, SQL" and check if tags appear in correct sections.' },
+    { id: 't4', label: 'Round mapping changes based on company + skills', hint: 'Try "Google" vs "MyStartup" to see different timelines.' },
+    { id: 't5', label: 'Score calculation is deterministic', hint: 'Same JD should result in same base score every time.' },
+    { id: 't6', label: 'Skill toggles update score live', hint: 'Toggle a skill tag on the results page and watch the score badge.' },
+    { id: 't7', label: 'Changes persist after refresh', hint: 'Toggle a skill, refresh the page, and check if it stayed toggled.' },
+    { id: 't8', label: 'History saves and loads correctly', hint: 'Go to Analysis History and click an old entry.' },
+    { id: 't9', label: 'Export buttons copy the correct content', hint: 'Click "Copy Plan" and paste it into a notepad.' },
+    { id: 't10', label: 'No console errors on core pages', hint: 'Open dev tools (F12) and check the Console tab.' }
+];
+
 // --- Analysis Engine ---
 const AnalysisEngine = {
     extractSkills(text) {
@@ -40,14 +53,11 @@ const AnalysisEngine = {
 
     calculateBaseScore(data) {
         let score = 35;
-        const allSkills = Object.values(data.extractedSkills).flat();
         const catsWithSkills = Object.entries(data.extractedSkills).filter(([k, v]) => v.length > 0 && k !== 'other').length;
-
         score += Math.min(catsWithSkills * 5, 30);
         if (data.company.trim()) score += 10;
         if (data.role.trim()) score += 10;
         if (data.jdText.length > 800) score += 10;
-
         return Math.min(score, 100);
     },
 
@@ -74,10 +84,6 @@ const AnalysisEngine = {
     },
 
     generateRoundMapping(intel, skills) {
-        const allSkills = Object.values(skills).flat();
-        const hasDSA = allSkills.some(s => ['DSA', 'OOP'].includes(s));
-        const hasWeb = allSkills.some(s => ['React', 'Node.js', 'JavaScript'].includes(s));
-
         if (intel.type === "ENTERPRISE") {
             return [
                 { roundTitle: "Online Assessment", focusAreas: ["DSA", "Aptitude"], whyItMatters: "Standard filter round to test logic and speed." },
@@ -120,7 +126,7 @@ const AnalysisEngine = {
     }
 };
 
-// --- History Management ---
+// --- History & Storage Management ---
 const HistoryManager = {
     save(entry) {
         const history = this.getAll();
@@ -138,29 +144,19 @@ const HistoryManager = {
         if (!raw) return [];
         try {
             const history = JSON.parse(raw);
-            const validHistory = [];
-            let corruptionFound = false;
-
-            history.forEach(entry => {
-                if (entry && entry.id && entry.jdText) {
-                    validHistory.push(entry);
-                } else {
-                    corruptionFound = true;
-                }
-            });
-
-            if (corruptionFound) {
-                console.warn("Skipped corrupted entries.");
-                // We keep valid ones
-            }
-            return validHistory;
+            return history.filter(entry => entry && entry.id && entry.jdText);
         } catch (e) {
-            console.error("Critical storage corruption. Initializing empty history.");
             return [];
         }
     },
     get(id) {
         return this.getAll().find(e => e.id === id);
+    },
+    getChecklist() {
+        return JSON.parse(localStorage.getItem('prp_test_checklist') || '{}');
+    },
+    saveChecklist(data) {
+        localStorage.setItem('prp_test_checklist', JSON.stringify(data));
     }
 };
 
@@ -194,235 +190,210 @@ const ExportTools = {
 
 // --- Routing & UI ---
 const routes = {
-    'dashboard-content': {
-        title: 'Dashboard Overview',
-        render: () => {
-            const container = document.getElementById('main-content');
-            container.innerHTML = `
-                <div class="dashboard-grid">
-                    <div class="card">
-                        <h3 class="card-title">Quick Action</h3>
-                        <p>Analyze a job description to get a personalized preparation plan.</p>
-                        <button class="btn btn-primary" onclick="loadRoute('assessments')">New Analysis</button>
-                    </div>
-                    <div class="card">
-                        <h3 class="card-title">History Snapshot</h3>
-                        <p>Access your previous analysis reports.</p>
-                        <button class="btn btn-secondary" onclick="loadRoute('history')">View History</button>
-                    </div>
-                </div>
-            `;
-            lucide.createIcons();
-        }
-    },
-    'assessments': {
-        title: 'Job Description Analysis',
-        render: () => {
-            const container = document.getElementById('main-content');
-            container.innerHTML = `
-                <div class="analysis-container">
-                    <div class="card">
-                        <h3 class="card-title">Enter Opportunity Details</h3>
-                        <div id="validation-warning" style="display:none; background: #fffbeb; border: 1px solid #fef3c7; color: #92400e; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 16px;">
-                            This JD is too short to analyze deeply. Paste full JD for better output.
-                        </div>
-                        <div class="input-group">
-                            <label>Company Name (Optional)</label>
-                            <input type="text" id="company" class="input-field" placeholder="e.g. Google, Microsoft">
-                        </div>
-                        <div class="input-group">
-                            <label>Target Role (Optional)</label>
-                            <input type="text" id="role" class="input-field" placeholder="e.g. Software Engineer, Backend Dev">
-                        </div>
-                        <div class="input-group">
-                            <label>Job Description <span style="color:red;">*</span></label>
-                            <textarea id="jdText" class="input-field" placeholder="Paste the full JD here... (Minimum 200 chars recommended)"></textarea>
-                        </div>
-                        <button class="btn btn-primary" onclick="runAnalysis()">
-                            Analyze Now
-                            <i data-lucide="zap"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-            lucide.createIcons();
-        }
-    },
-    'history': {
-        title: 'Analysis History',
-        render: () => {
-            const container = document.getElementById('main-content');
-            const history = HistoryManager.getAll();
-
-            if (history.length === 0) {
-                container.innerHTML = `
-                    <div class="card" style="text-align: center; padding: 64px;">
-                        <i data-lucide="history" style="width: 48px; height: 48px; margin: 0 auto 16px; color: var(--color-text-muted);"></i>
-                        <h3>Empty History</h3>
-                        <p>One saved entry couldn't be loaded or no history exists. Create a new analysis.</p>
-                        <button class="btn btn-primary" onclick="loadRoute('assessments')" style="margin-top: 24px;">Start Now</button>
-                    </div>
-                `;
-            } else {
-                container.innerHTML = `
-                    <div class="history-list">
-                        ${history.map(item => `
-                            <div class="history-item" onclick="viewResult('${item.id}')">
-                                <div class="history-info">
-                                    <h4>${item.company || 'Unknown'} — ${item.role || 'Dev'}</h4>
-                                    <span class="history-meta">${new Date(item.createdAt).toLocaleDateString()} • Updated ${new Date(item.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                </div>
-                                <div class="score-badge ${item.finalScore > 75 ? 'score-high' : (item.finalScore > 50 ? 'score-mid' : 'score-low')}">
-                                    ${item.finalScore}%
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            }
-            lucide.createIcons();
-        }
-    },
-    'results': {
-        title: 'Preparation Analysis',
-        render: (data) => {
-            if (!data) return loadRoute('dashboard-content');
-            const container = document.getElementById('main-content');
-            const confidence = data.skillConfidenceMap || {};
-            const allSkillsList = Object.values(data.extractedSkills).flat();
-            const weakSkills = allSkillsList.filter(s => confidence[s] !== 'know').slice(0, 3);
-
-            container.innerHTML = `
-                <div class="results-grid">
-                    <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
-                        <div class="card">
-                            <h3 class="card-title">Readiness Score</h3>
-                            <div id="live-score" class="score-badge ${data.finalScore > 75 ? 'score-high' : (data.finalScore > 50 ? 'score-mid' : 'score-low')}" style="text-align: center; font-size: 2.5rem; padding: 24px;">
-                                ${data.finalScore}%
-                            </div>
-                            <div class="export-group">
-                                <button class="btn btn-secondary btn-icon-sm" onclick="ExportTools.copyText(HistoryManager.get('${data.id}').plan7Days.map(p => p.day + ': ' + p.focus).join('\\n'))">
-                                    <i data-lucide="copy"></i> Plan
-                                </button>
-                                <button class="btn btn-secondary btn-icon-sm" onclick="ExportTools.downloadTxt(HistoryManager.get('${data.id}'))">
-                                    <i data-lucide="download"></i> TXT
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <h3 class="card-title">Company Intel</h3>
-                            <div style="font-size: 1.1rem; font-weight: 700; color: var(--color-text);">${data.company || "General Recruitment"}</div>
-                            <div class="intel-badge-group">
-                                <span class="intel-badge">${data.roundMapping[0] ? (data.roundMapping.length > 3 ? 'Enterprise' : 'Startup') : 'General'}</span>
-                                <span class="intel-badge">Heuristic Analysis</span>
-                            </div>
-                            <p style="font-size: 12px; color: var(--color-text-muted); margin-top: 12px; font-style: italic;">Note: Intel is generated heuristically for demo purposes.</p>
-                        </div>
-                        
-                        <div class="card">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <h3 class="card-title" style="margin:0;">Self Assessment</h3>
-                                <span style="font-size:10px; color:var(--color-text-muted);">Toggle skills you know</span>
-                            </div>
-                            ${Object.entries(data.extractedSkills).filter(([c, s]) => s.length > 0).map(([cat, skills]) => `
-                                <div>
-                                    <div class="skill-category-label">${cat}</div>
-                                    <div class="skill-tag-group">
-                                        ${skills.map(s => `
-                                            <span class="skill-tag ${confidence[s] === 'know' ? 'active' : ''}" 
-                                                  onclick='toggleSkill("${data.id}", "${s}")'>
-                                                ${s}
-                                            </span>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-
-                    <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
-                        <div class="card">
-                            <h3 class="card-title">Interview Round Mapping</h3>
-                            <div class="timeline">
-                                ${data.roundMapping.map(round => `
-                                    <div class="timeline-item">
-                                        <div class="timeline-marker"></div>
-                                        <div class="timeline-content">
-                                            <div class="timeline-title">${round.roundTitle}</div>
-                                            <div style="font-size: 12px; color:var(--color-primary); font-weight:600;">Focus: ${round.focusAreas.join(', ')}</div>
-                                            <div class="timeline-explainer">${round.whyItMatters}</div>
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <h3 class="card-title">7-Day Preparation Plan</h3>
-                            <div class="plan-list">
-                                ${data.plan7Days.map(p => `
-                                    <div class="plan-day">
-                                        <div style="font-weight: 700; color: var(--color-primary);">${p.day} — ${p.focus}</div>
-                                        <ul style="margin-top: 4px; font-size: 0.9375rem; list-style: disc; padding-left: 16px;">
-                                            ${p.tasks.map(t => `<li>${t}</li>`).join('')}
-                                        </ul>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <h3 class="card-title">Key Interview Questions</h3>
-                            <div class="question-list">
-                                ${data.questions.map((q, i) => `
-                                    <div class="question-item">
-                                        <div class="question-text">${i + 1}. ${q}</div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <div class="action-box">
-                            <div>
-                                <h3>Action Next</h3>
-                                <p>Focus on these ${weakSkills.length} areas first:</p>
-                                <div class="weak-skills-list" style="display: flex; gap: 8px; margin-top: 8px;">
-                                    ${weakSkills.map(s => `<span class="weak-skill-chip" style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 11px;">${s}</span>`).join('')}
-                                </div>
-                            </div>
-                            <button class="btn" style="background: white; color: var(--color-primary);" onclick="window.navigateTo('dashboard')">
-                                Start Training
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            lucide.createIcons();
-        }
-    }
+    'dashboard-content': { title: 'Dashboard Overview', render: () => renderDashboard() },
+    'assessments': { title: 'Job Description Analysis', render: () => renderAnalysisForm() },
+    'history': { title: 'Analysis History', render: () => renderHistory() },
+    'results': { title: 'Preparation Analysis', render: (data) => renderResults(data) },
+    'prp-test': { title: 'Built-in Test Checklist', render: () => renderTestChecklist() },
+    'prp-ship': { title: 'Ready to Ship', render: () => renderShipLock() }
 };
+
+function renderDashboard() {
+    const container = document.getElementById('main-content');
+    container.innerHTML = `
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3 class="card-title">Quick Action</h3>
+                <p>Analyze a job description to get a personalized preparation plan.</p>
+                <button class="btn btn-primary" onclick="loadRoute('assessments')">New Analysis</button>
+            </div>
+            <div class="card">
+                <h3 class="card-title">History Snapshot</h3>
+                <p>Access your previous analysis reports.</p>
+                <button class="btn btn-secondary" onclick="loadRoute('history')">View History</button>
+            </div>
+            <div class="card">
+                <h3 class="card-title">Test Environment</h3>
+                <p>Verify all features before final deployment.</p>
+                <button class="btn btn-secondary" onclick="loadRoute('prp-test')">Go to Checklist</button>
+            </div>
+        </div>
+    `;
+    lucide.createIcons();
+}
+
+function renderAnalysisForm() {
+    const container = document.getElementById('main-content');
+    container.innerHTML = `
+        <div class="analysis-container">
+            <div class="card">
+                <h3 class="card-title">Enter Opportunity Details</h3>
+                <div id="validation-warning" style="display:none; background: #fffbeb; border: 1px solid #fef3c7; color: #92400e; padding: 12px; border-radius: 8px; font-size: 13px; margin-bottom: 16px;">
+                    This JD is too short to analyze deeply. Paste full JD for better output.
+                </div>
+                <div class="input-group">
+                    <label>Company Name (Optional)</label>
+                    <input type="text" id="company" class="input-field" placeholder="e.g. Google, Microsoft">
+                </div>
+                <div class="input-group">
+                    <label>Target Role (Optional)</label>
+                    <input type="text" id="role" class="input-field" placeholder="e.g. Software Engineer, Backend Dev">
+                </div>
+                <div class="input-group">
+                    <label>Job Description <span style="color:red;">*</span></label>
+                    <textarea id="jdText" class="input-field" placeholder="Paste the full JD here... (Minimum 200 chars recommended)"></textarea>
+                </div>
+                <button class="btn btn-primary" onclick="runAnalysis()">
+                    Analyze Now
+                    <i data-lucide="zap"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    lucide.createIcons();
+}
+
+function renderHistory() {
+    const container = document.getElementById('main-content');
+    const history = HistoryManager.getAll();
+    if (history.length === 0) {
+        container.innerHTML = `<div class="card" style="text-align: center; padding: 64px;"><h3>Empty History</h3><p>Start by analyzing your first job description.</p></div>`;
+    } else {
+        container.innerHTML = `<div class="history-list">${history.map(item => `
+            <div class="history-item" onclick="viewResult('${item.id}')">
+                <div class="history-info">
+                    <h4>${item.company || 'Unknown'} — ${item.role || 'Dev'}</h4>
+                    <span class="history-meta">${new Date(item.createdAt).toLocaleDateString()}</span>
+                </div>
+                <div class="score-badge ${item.finalScore > 75 ? 'score-high' : 'score-mid'}">${item.finalScore}%</div>
+            </div>
+        `).join('')}</div>`;
+    }
+    lucide.createIcons();
+}
+
+function renderResults(data) {
+    if (!data) return loadRoute('dashboard-content');
+    const container = document.getElementById('main-content');
+    const confidence = data.skillConfidenceMap || {};
+    const weakSkills = Object.values(data.extractedSkills).flat().filter(s => confidence[s] !== 'know').slice(0, 3);
+
+    container.innerHTML = `
+        <div class="results-grid">
+            <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
+                <div class="card">
+                    <div id="live-score" class="score-badge ${data.finalScore > 75 ? 'score-high' : 'score-mid'}" style="text-align: center; font-size: 2.5rem; padding: 24px;">${data.finalScore}%</div>
+                    <div class="export-group">
+                        <button class="btn btn-secondary btn-icon-sm" onclick="ExportTools.downloadTxt(HistoryManager.get('${data.id}'))"><i data-lucide="download"></i> TXT</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="card-title">Self Assessment</h3>
+                    ${Object.entries(data.extractedSkills).filter(([c, s]) => s.length > 0).map(([cat, skills]) => `
+                        <div>
+                            <div class="skill-category-label">${cat}</div>
+                            <div class="skill-tag-group">
+                                ${skills.map(s => `<span class="skill-tag ${confidence[s] === 'know' ? 'active' : ''}" onclick='toggleSkill("${data.id}", "${s}")'>${s}</span>`).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
+                <div class="card">
+                    <h3 class="card-title">Interview Round Mapping</h3>
+                    <div class="timeline">
+                        ${data.roundMapping.map(r => `<div class="timeline-item"><div class="timeline-marker"></div><div class="timeline-content"><div class="timeline-title">${r.roundTitle}</div><div class="timeline-explainer">${r.whyItMatters}</div></div></div>`).join('')}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    lucide.createIcons();
+}
+
+function renderTestChecklist() {
+    const container = document.getElementById('main-content');
+    const saved = HistoryManager.getChecklist();
+    const passedCount = TEST_CHECKLIST_SCHEMA.filter(t => saved[t.id]).length;
+
+    container.innerHTML = `
+        <div class="checklist-container">
+            <div class="status-box ${passedCount === 10 ? 'status-success' : 'status-warning'}">
+                <h3 style="margin:0;">Tests Passed: ${passedCount} / 10</h3>
+                ${passedCount < 10 ? '<p style="margin-top:8px;">Fix issues before shipping.</p>' : '<p style="margin-top:8px;">All tests passed! Ready to ship.</p>'}
+            </div>
+            
+            <div class="card">
+                ${TEST_CHECKLIST_SCHEMA.map(test => `
+                    <div class="checklist-item ${saved[test.id] ? 'checked' : ''}">
+                        <input type="checkbox" id="${test.id}" ${saved[test.id] ? 'checked' : ''} onchange="toggleCheck('${test.id}')">
+                        <div style="flex:1;">
+                            <label for="${test.id}" style="font-weight:700; cursor:pointer;">${test.label}</label>
+                            <div class="checklist-hint">How to test: ${test.hint}</div>
+                        </div>
+                    </div>
+                `).join('')}
+                
+                <div style="display:flex; gap:16px; margin-top:24px;">
+                    <button class="btn btn-secondary" onclick="resetChecklist()">Reset Checklist</button>
+                    <button class="btn btn-primary" onclick="loadRoute('prp-ship')">Proceed to Ship</button>
+                </div>
+            </div>
+        </div>
+    `;
+    lucide.createIcons();
+}
+
+function renderShipLock() {
+    const container = document.getElementById('main-content');
+    const saved = HistoryManager.getChecklist();
+    const passedCount = TEST_CHECKLIST_SCHEMA.filter(t => saved[t.id]).length;
+
+    if (passedCount < 10) {
+        container.innerHTML = `
+            <div class="lock-screen card">
+                <i data-lucide="lock" class="lock-icon" style="margin: 0 auto;"></i>
+                <h2>Route Locked</h2>
+                <p>Final shipping is locked until all 10 checklist items are verified.</p>
+                <button class="btn btn-primary" onclick="loadRoute('prp-test')" style="margin-top:24px; align-self:center;">Return to Checklist</button>
+            </div>
+        `;
+    } else {
+        container.innerHTML = `
+            <div class="lock-screen card">
+                <i data-lucide="unlock" class="lock-icon" style="margin:0 auto; color: var(--color-primary);"></i>
+                <h2>Ready to Ship!</h2>
+                <p>All quality checks passed. The platform is hardened and ready for production.</p>
+                <button class="btn btn-primary" onclick="alert('Platform deployed to production!')" style="margin-top:24px; align-self:center;">Final Deploy</button>
+            </div>
+        `;
+    }
+    lucide.createIcons();
+}
+
+function toggleCheck(id) {
+    const saved = HistoryManager.getChecklist();
+    saved[id] = !saved[id];
+    HistoryManager.saveChecklist(saved);
+    renderTestChecklist();
+}
+
+function resetChecklist() {
+    HistoryManager.saveChecklist({});
+    renderTestChecklist();
+}
 
 function toggleSkill(entryId, skillName) {
     const entry = HistoryManager.get(entryId);
     if (!entry) return;
-
     if (!entry.skillConfidenceMap) entry.skillConfidenceMap = {};
-
-    if (entry.skillConfidenceMap[skillName] === 'know') {
-        entry.skillConfidenceMap[skillName] = 'practice';
-    } else {
-        entry.skillConfidenceMap[skillName] = 'know';
-    }
-
+    entry.skillConfidenceMap[skillName] = (entry.skillConfidenceMap[skillName] === 'know') ? 'practice' : 'know';
     let offset = 0;
-    const allSkills = Object.values(entry.extractedSkills).flat();
-    allSkills.forEach(s => {
+    Object.values(entry.extractedSkills).flat().forEach(s => {
         if (entry.skillConfidenceMap[s] === 'know') offset += 2;
         else offset -= 2;
     });
-
     entry.finalScore = Math.max(0, Math.min(100, entry.baseScore + offset));
     HistoryManager.save(entry);
     loadRoute('results', entry);
@@ -433,84 +404,36 @@ function runAnalysis() {
     const role = document.getElementById('role').value;
     const jdText = document.getElementById('jdText').value;
     const warning = document.getElementById('validation-warning');
-
-    if (!jdText.trim()) {
-        alert("Job Description is required to run analysis.");
-        return;
-    }
-
-    if (jdText.length < 200) {
-        warning.style.display = 'block';
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        // We still allow it but show warning
-    } else {
-        warning.style.display = 'none';
-    }
-
+    if (!jdText.trim()) { alert("Job Description is required."); return; }
+    if (jdText.length < 200) { warning.style.display = 'block'; window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    else { warning.style.display = 'none'; }
     const extractedSkills = AnalysisEngine.extractSkills(jdText);
     const baseScore = AnalysisEngine.calculateBaseScore({ company, role, jdText, extractedSkills });
     const intel = AnalysisEngine.generateCompanyIntel(company, jdText);
     const roundMapping = AnalysisEngine.generateRoundMapping(intel, extractedSkills);
-    const checklist = AnalysisEngine.generateChecklist(extractedSkills);
-    const plan7Days = AnalysisEngine.generatePlan(extractedSkills);
-    const questions = AnalysisEngine.generateQuestions(extractedSkills);
-
     const entry = {
-        id: 'anlyz_' + Date.now(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        company: company || "",
-        role: role || "",
-        jdText,
-        extractedSkills,
-        roundMapping,
-        checklist,
-        plan7Days,
-        questions,
-        baseScore: baseScore,
-        skillConfidenceMap: {},
-        finalScore: baseScore
+        id: 'anlyz_' + Date.now(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        company, role, jdText, extractedSkills, roundMapping, checklist: AnalysisEngine.generateChecklist(extractedSkills),
+        plan7Days: AnalysisEngine.generatePlan(extractedSkills), questions: AnalysisEngine.generateQuestions(extractedSkills),
+        baseScore, skillConfidenceMap: {}, finalScore: baseScore
     };
-
     HistoryManager.save(entry);
     loadRoute('results', entry);
 }
 
 function viewResult(id) {
     const entry = HistoryManager.get(id);
-    if (entry) {
-        loadRoute('results', entry);
-    }
-}
-
-function navigateTo(view) {
-    const landing = document.getElementById('landing-page');
-    const dashboard = document.getElementById('dashboard-layout');
-
-    if (view === 'dashboard') {
-        landing.classList.add('hidden');
-        dashboard.classList.remove('hidden');
-        loadRoute('dashboard-content');
-    } else {
-        landing.classList.remove('hidden');
-        dashboard.classList.add('hidden');
-    }
-    lucide.createIcons();
+    if (entry) loadRoute('results', entry);
 }
 
 function loadRoute(routeId, data = null) {
     const pageTitle = document.getElementById('page-title');
     const route = routes[routeId];
-    if (route) {
-        pageTitle.innerText = route.title;
-        route.render(data);
-    }
+    if (route) { pageTitle.innerText = route.title; route.render(data); }
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
         const onclickAttr = item.getAttribute('onclick');
-        if (onclickAttr && onclickAttr.includes(`'${routeId}'`)) {
-            item.classList.add('active');
-        }
+        if (onclickAttr && onclickAttr.includes(`'${routeId}'`)) item.classList.add('active');
     });
     lucide.createIcons();
 }
@@ -519,6 +442,12 @@ window.loadRoute = loadRoute;
 window.runAnalysis = runAnalysis;
 window.viewResult = viewResult;
 window.toggleSkill = toggleSkill;
-window.navigateTo = navigateTo;
+window.toggleCheck = toggleCheck;
+window.resetChecklist = resetChecklist;
+window.navigateTo = (v) => {
+    document.getElementById('landing-page').classList.toggle('hidden', v === 'dashboard');
+    document.getElementById('dashboard-layout').classList.toggle('hidden', v !== 'dashboard');
+    if (v === 'dashboard') loadRoute('dashboard-content');
+};
 window.ExportTools = ExportTools;
 window.HistoryManager = HistoryManager;

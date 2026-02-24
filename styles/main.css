@@ -713,3 +713,74 @@ textarea.input-field {
         font-size: 2.5rem;
     }
 }
+
+/* Testing & Shipping */
+.checklist-container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.checklist-item {
+    display: flex;
+    gap: var(--space-md);
+    padding: var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-sm);
+    transition: var(--transition-fast);
+    align-items: center;
+}
+
+.checklist-item:hover {
+    border-color: var(--color-primary);
+}
+
+.checklist-item.checked {
+    background: var(--color-primary-light);
+    border-color: var(--color-primary);
+}
+
+.checklist-item input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: var(--color-primary);
+}
+
+.checklist-hint {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+}
+
+.status-box {
+    padding: var(--space-lg);
+    border-radius: var(--radius-lg);
+    margin-bottom: var(--space-xl);
+    text-align: center;
+}
+
+.status-warning {
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fef3c7;
+}
+
+.status-success {
+    background: #f0fdf4;
+    color: #15803d;
+    border: 1px solid #dcfce7;
+}
+
+.lock-screen {
+    text-align: center;
+    padding: 64px 24px;
+}
+
+.lock-icon {
+    width: 64px;
+    height: 64px;
+    color: var(--color-text-muted);
+    margin: 0 auto var(--space-lg);
+}
