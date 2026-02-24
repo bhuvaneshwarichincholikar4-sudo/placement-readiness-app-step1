@@ -1,33 +1,48 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:ital,wght@0,400..700;1,400..700&display=swap');
-
 :root {
     /* Color System */
-    --color-bg: #F7F6F3;
-    --color-text-primary: #111111;
-    --color-accent: #8B0000;
-    --color-accent-hover: #600000;
-    --color-success: #4F7942;
-    --color-warning: #B8860B; /* Muted amber */
-    --color-border: rgba(17, 17, 17, 0.1);
-    --color-secondary-bg: #FFFFFF;
+    --color-primary: hsl(245, 58%, 51%);
+    --color-primary-hover: hsl(245, 58%, 45%);
+    --color-primary-light: hsl(245, 58%, 95%);
+
+    --color-bg: #F9FAFB;
+    --color-surface: #FFFFFF;
+
+    --color-text-primary: #1F2937;
+    --color-text-secondary: #4B5563;
+    --color-text-muted: #9CA3AF;
+
+    --color-success: #10B981;
+    --color-warning: #F59E0B;
+    --color-error: #EF4444;
+
+    --color-border: #E5E7EB;
 
     /* Spacing System */
-    --space-1: 8px;
-    --space-2: 16px;
-    --space-3: 24px;
-    --space-4: 40px;
-    --space-5: 64px;
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-2xl: 48px;
+    --space-3xl: 64px;
 
     /* Typography */
-    --font-heading: 'Lora', serif;
-    --font-body: 'Inter', sans-serif;
-    
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+    /* Radii */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-full: 9999px;
+
     /* Transitions */
-    --transition-standard: 200ms ease-in-out;
-    
-    /* Layout */
-    --max-width-text: 720px;
-    --border-radius: 4px;
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -39,19 +54,33 @@
 body {
     background-color: var(--color-bg);
     color: var(--color-text-primary);
-    font-family: var(--font-body);
+    font-family: var(--font-sans);
     font-size: 16px;
-    line-height: 1.6;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-heading);
-    font-weight: 500;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-weight: 700;
+    color: var(--color-text-primary);
     line-height: 1.2;
 }
 
-p {
-    max-width: var(--max-width-text);
+button {
+    font-family: inherit;
+    cursor: pointer;
+}
+
+a {
+    text-decoration: none;
+    color: inherit;
+}
+
+ul {
+    list-style: none;
 }

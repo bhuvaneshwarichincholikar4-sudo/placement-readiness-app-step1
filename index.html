@@ -1,90 +1,106 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KodNest Premium Build System</title>
+    <title>Placement Prep — Ace Your Future</title>
     <link rel="stylesheet" href="styles/main.css">
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
+
 <body>
-    <header class="top-bar">
-        <div class="project-name">KodNest Premium</div>
-        <div class="progress-indicator">Step 01 / 04 — System Initialization</div>
-        <div class="status-badge in-progress">In Progress</div>
-    </header>
+    <div id="app" class="app-container">
+        <!-- Landing Page Section -->
+        <section id="landing-page" class="view">
+            <header class="hero">
+                <h1>Ace Your Placement</h1>
+                <p>Practice, assess, and prepare for your dream job with our comprehensive prep platform.</p>
+                <button class="btn btn-primary" onclick="navigateTo('dashboard')">
+                    Get Started
+                    <i data-lucide="arrow-right"></i>
+                </button>
+            </header>
 
-    <div class="context-header">
-        <h1>Foundation & Design System</h1>
-        <p>A calm, intentional environment for building serious B2B software solutions.</p>
-    </div>
-
-    <main class="main-container">
-        <section class="primary-workspace">
-            <div class="card">
-                <h3>System Architecture</h3>
-                <p>This workspace serves as the primary interaction point. It is designed to be spacious and predictable, favoring structure over flair.</p>
-                
-                <div style="margin-top: var(--space-4);">
-                    <div class="input-group">
-                        <label>Component Name</label>
-                        <input type="text" placeholder="e.g. AuthenticationModule">
+            <main class="features">
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i data-lucide="code"></i>
+                        </div>
+                        <h3>Practice Problems</h3>
+                        <p>Sharpen your coding skills with curated problems from top tech companies.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i data-lucide="video"></i>
+                        </div>
+                        <h3>Mock Interviews</h3>
+                        <p>Simulate real interview experiences with our video-on-demand platform.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i data-lucide="bar-chart-3"></i>
+                        </div>
+                        <h3>Track Progress</h3>
+                        <p>Monitor your growth with detailed analytics and skill assessments.</p>
                     </div>
                 </div>
+            </main>
 
-                <div style="margin-top: var(--space-3); display: flex; gap: var(--space-2);">
-                    <button class="btn btn-primary">Primary Action</button>
-                    <button class="btn btn-secondary">Secondary Action</button>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>Visual Language</h3>
-                <p>No gradients. No glassmorphism. Just clear boundaries and purposeful hierarchy. The deep red accent draws the eye only where interaction is required.</p>
-            </div>
+            <footer>
+                <p>&copy; 2026 Placement Prep. All rights reserved.</p>
+            </footer>
         </section>
 
-        <aside class="secondary-panel">
-            <div class="card">
-                <h3>Assistant Guidance</h3>
-                <p style="font-size: 14px; margin-bottom: var(--space-2);">Copy the initialization prompt below to begin your build in the Lovable environment.</p>
-                
-                <div class="prompt-box">
-                    <code>Initialize KodNest Build System v1.0.0 --deep-red --serif-confident</code>
+        <!-- Dashboard Layout Section (Hidden by default) -->
+        <section id="dashboard-layout" class="dashboard-layout hidden">
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <i data-lucide="graduation-cap" class="sidebar-logo-icon"></i>
+                    <span class="sidebar-logo">Placement Prep</span>
                 </div>
+                <nav>
+                    <a href="javascript:void(0)" class="nav-item active" onclick="loadRoute('dashboard-content')">
+                        <i data-lucide="layout-dashboard"></i>
+                        Dashboard
+                    </a>
+                    <a href="javascript:void(0)" class="nav-item" onclick="loadRoute('practice')">
+                        <i data-lucide="code-2"></i>
+                        Practice
+                    </a>
+                    <a href="javascript:void(0)" class="nav-item" onclick="loadRoute('assessments')">
+                        <i data-lucide="file-text"></i>
+                        Assessments
+                    </a>
+                    <a href="javascript:void(0)" class="nav-item" onclick="loadRoute('resources')">
+                        <i data-lucide="book-open"></i>
+                        Resources
+                    </a>
+                    <a href="javascript:void(0)" class="nav-item" onclick="loadRoute('profile')">
+                        <i data-lucide="user"></i>
+                        Profile
+                    </a>
+                </nav>
+            </aside>
 
-                <div class="action-grid">
-                    <button class="btn btn-secondary btn-sm">Copy</button>
-                    <button class="btn btn-primary btn-sm">Build in Lovable</button>
-                    <button class="btn btn-secondary btn-sm">It Worked</button>
-                    <button class="btn btn-secondary btn-sm">Error</button>
-                    <button class="btn btn-secondary btn-sm full-width">Add Screenshot</button>
-                </div>
+            <div class="main-wrapper">
+                <header class="header">
+                    <div class="header-title" id="page-title">Dashboard</div>
+                    <div class="user-avatar">JD</div>
+                </header>
+                <main class="content-area" id="main-content">
+                    <!-- Dynamic content will be loaded here (Simulation of <Outlet />) -->
+                </main>
             </div>
-        </aside>
-    </main>
+        </section>
+    </div>
 
-    <footer class="proof-footer">
-        <ul class="checklist">
-            <li class="checklist-item">
-                <input type="checkbox" checked disabled> 
-                <span>UI Built</span>
-            </li>
-            <li class="checklist-item">
-                <input type="checkbox" disabled> 
-                <span>Logic Working</span>
-            </li>
-            <li class="checklist-item">
-                <input type="checkbox" disabled> 
-                <span>Test Passed</span>
-            </li>
-            <li class="checklist-item">
-                <input type="checkbox" disabled> 
-                <span>Deployed</span>
-            </li>
-        </ul>
-    </footer>
-
-    <!-- Empty Spacer for Footer -->
-    <div style="height: 100px;"></div>
+    <script src="scripts/app.js"></script>
 </body>
+
 </html>
