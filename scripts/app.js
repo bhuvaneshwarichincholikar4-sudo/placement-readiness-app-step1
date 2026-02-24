@@ -12,6 +12,8 @@ const AnalysisEngine = {
         'Testing': ['Selenium', 'Cypress', 'Playwright', 'JUnit', 'PyTest']
     },
 
+    enterprises: ['Google', 'Amazon', 'Microsoft', 'Meta', 'Infosys', 'TCS', 'Wipro', 'HCL', 'Accenture', 'Cognizant', 'IBM', 'Adobe', 'Oracle', 'Salesforce'],
+
     extractSkills(text) {
         const found = {};
         const lowerText = text.toLowerCase();
@@ -38,6 +40,55 @@ const AnalysisEngine = {
         if (data.role.trim()) score += 10;
         if (data.jdText.length > 800) score += 10;
         return Math.min(score, 100);
+    },
+
+    generateCompanyIntel(companyName, jdText) {
+        const lowerName = companyName.toLowerCase();
+        const lowerJd = jdText.toLowerCase();
+
+        const isEnterprise = this.enterprises.some(e => lowerName.includes(e.toLowerCase()));
+
+        let industry = "Technology Services";
+        if (/bank|cash|pay|invest|finance/.test(lowerJd)) industry = "FinTech";
+        else if (/health|medical|medicine/.test(lowerJd)) industry = "HealthTech";
+        else if (/shop|buy|commerce/.test(lowerJd)) industry = "E-commerce";
+        else if (/social|media|chat/.test(lowerJd)) industry = "Social Media / Content";
+
+        return {
+            name: companyName || "Unknown Venture",
+            industry: industry,
+            size: isEnterprise ? "Enterprise (2000+)" : "Startup (<200)",
+            type: isEnterprise ? "ENTERPRISE" : "STARTUP",
+            hiringFocus: isEnterprise
+                ? "Highly structured interviews focused on DSA, core CS fundamentals, and scalability."
+                : "Practical, fast-paced assessment focused on stack depth and immediate problem-solving impact."
+        };
+    },
+
+    generateRoundMapping(intel, skills) {
+        const hasDSA = Object.values(skills).flat().some(s => ['DSA', 'OOP'].includes(s));
+        const hasWeb = Object.values(skills).flat().some(s => ['React', 'Node.js', 'JavaScript'].includes(s));
+
+        if (intel.type === "ENTERPRISE" && hasDSA) {
+            return [
+                { title: "Online Assessment", explainer: "Filter round covering Aptitude and 2-3 DSA problems." },
+                { title: "Technical Interview I", explainer: "Deep dive into DSA, complexity analysis, and Core CS." },
+                { title: "Technical Interview II", explainer: "Focus on Projects, System Design, and Problem Solving." },
+                { title: "HR / Culture Round", explainer: "Discussion on goals, behavioral traits, and company fit." }
+            ];
+        } else if (intel.type === "STARTUP" && hasWeb) {
+            return [
+                { title: "Practical Coding Challenge", explainer: "Take-home task or live pair programming on a real feature." },
+                { title: "Technical Discussion", explainer: "Explaining your tech choices, stack depth, and debugging skill." },
+                { title: "Founder / Culture fit", explainer: "Checking for ownership mindset and team alignment." }
+            ];
+        } else {
+            return [
+                { title: "Initial Screening", explainer: "Brief call to understand your background and experience." },
+                { title: "Technical Evaluation", explainer: "Standard round covering your stack and basics." },
+                { title: "Final Discussion", explainer: "Closing round with the hiring manager." }
+            ];
+        }
     },
 
     generateChecklist(skills) {
@@ -155,6 +206,7 @@ const ExportTools = {
 
         const content = `Placement Readiness Report: ${entry.company} - ${entry.role}\n` +
             `Score: ${entry.readinessScore}%\n\n` +
+            `INTEL:\nIndustry: ${entry.companyIntel.industry}\nSize: ${entry.companyIntel.size}\n\n` +
             `SKILLS:\n${skills}\n\n` +
             `PREPARATION PLAN:\n${plan}\n\n` +
             `ROUND-WISE CHECKLIST:\n${checklist}\n\n` +
@@ -266,25 +318,45 @@ const routes = {
             const confidence = data.skillConfidenceMap || {};
             const allSkillsList = Object.values(data.extractedSkills).flat();
             const weakSkills = allSkillsList.filter(s => confidence[s] !== 'know').slice(0, 3);
+            const intel = data.companyIntel;
 
             container.innerHTML = `
                 <div class="results-grid">
                     <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
+                        <!-- Readiness Card -->
                         <div class="card">
                             <h3 class="card-title">Readiness Score</h3>
                             <div id="live-score" class="score-badge ${data.readinessScore > 75 ? 'score-high' : (data.readinessScore > 50 ? 'score-mid' : 'score-low')}" style="text-align: center; font-size: 2.5rem; padding: 24px;">
                                 ${data.readinessScore}%
                             </div>
                             <div class="export-group">
-                                <button class="btn btn-secondary btn-icon-sm" id="btn-copy-plan">
+                                <button class="btn btn-secondary btn-icon-sm" onclick="ExportTools.copyText(HistoryManager.get('${data.id}').plan.map(p => p.day + ': ' + p.topics.join(', ')).join('\\n'))">
                                     <i data-lucide="copy"></i> Plan
                                 </button>
-                                <button class="btn btn-secondary btn-icon-sm" id="btn-download-txt">
+                                <button class="btn btn-secondary btn-icon-sm" onclick="ExportTools.downloadTxt(HistoryManager.get('${data.id}'))">
                                     <i data-lucide="download"></i> TXT
                                 </button>
                             </div>
                         </div>
+
+                        <!-- Company Intel Card -->
+                        <div class="card">
+                            <h3 class="card-title">Company Intel</h3>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: var(--color-text);">${intel.name}</div>
+                            <div class="intel-badge-group">
+                                <span class="intel-badge">${intel.industry}</span>
+                                <span class="intel-badge">${intel.size}</span>
+                            </div>
+                            <div style="margin-top: var(--space-md); font-size: 0.875rem;">
+                                <strong>Hiring Focus:</strong>
+                                <div class="hiring-focus-box" style="margin-top: 8px;">
+                                    ${intel.hiringFocus}
+                                </div>
+                            </div>
+                            <div class="demo-note">Demo Mode: Company intel generated heuristically.</div>
+                        </div>
                         
+                        <!-- Skills Card -->
                         <div class="card">
                             <div style="display:flex; justify-content:space-between; align-items:center;">
                                 <h3 class="card-title" style="margin:0;">Self Assessment</h3>
@@ -307,11 +379,25 @@ const routes = {
                     </div>
 
                     <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
+                        <!-- Round Mapping Timeline -->
                         <div class="card">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <h3 class="card-title" style="margin:0;">Weekly Preparation Plan</h3>
-                                <button class="btn btn-secondary btn-icon-sm" id="btn-copy-plan-alt">Copy Plan</button>
+                            <h3 class="card-title">Interview Round Mapping</h3>
+                            <div class="timeline">
+                                ${data.roundMapping.map(round => `
+                                    <div class="timeline-item">
+                                        <div class="timeline-marker"></div>
+                                        <div class="timeline-content">
+                                            <div class="timeline-title">${round.title}</div>
+                                            <div class="timeline-explainer">Why it matters: ${round.explainer}</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
                             </div>
+                        </div>
+
+                        <!-- Preparation Plan -->
+                        <div class="card">
+                            <h3 class="card-title">Weekly Preparation Plan</h3>
                             <div class="plan-list">
                                 ${data.plan.map(p => `
                                     <div class="plan-day">
@@ -324,33 +410,9 @@ const routes = {
                             </div>
                         </div>
 
+                        <!-- Questions -->
                         <div class="card">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <h3 class="card-title" style="margin:0;">Round-wise Checklist</h3>
-                                <button class="btn btn-secondary btn-icon-sm" id="btn-copy-checklist">Copy List</button>
-                            </div>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
-                                ${data.checklist.map(round => `
-                                    <div class="checklist-group">
-                                        <h4 style="margin-bottom: 8px;">${round.title}</h4>
-                                        <ul style="display: flex; flex-direction: column; gap: 4px;">
-                                            ${round.items.map(item => `
-                                                <li style="font-size: 0.875rem; display: flex; align-items: center; gap: 8px;">
-                                                    <div style="width: 12px; height: 12px; border: 1.5px solid var(--color-border); border-radius: 2px;"></div>
-                                                    ${item}
-                                                </li>
-                                            `).join('')}
-                                        </ul>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <div style="display:flex; justify-content:space-between; align-items:center;">
-                                <h3 class="card-title" style="margin:0;">Top 10 Interview Questions</h3>
-                                <button class="btn btn-secondary btn-icon-sm" id="btn-copy-questions">Copy Questions</button>
-                            </div>
+                            <h3 class="card-title">Top 10 Interview Questions</h3>
                             <div class="question-list">
                                 ${data.questions.map((q, i) => `
                                     <div class="question-item">
@@ -364,12 +426,13 @@ const routes = {
                             </div>
                         </div>
 
+                        <!-- Action Box -->
                         <div class="action-box">
                             <div>
                                 <h3>Ready to start?</h3>
                                 <p>You have ${weakSkills.length} key areas to focus on:</p>
-                                <div class="weak-skills-list">
-                                    ${weakSkills.map(s => `<span class="weak-skill-chip">${s}</span>`).join('')}
+                                <div class="weak-skills-list" style="display: flex; gap: 8px; margin-top: 8px;">
+                                    ${weakSkills.map(s => `<span class="weak-skill-chip" style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 11px;">${s}</span>`).join('')}
                                 </div>
                             </div>
                             <button class="btn" style="background: white; color: var(--color-primary);" onclick="window.navigateTo('practice')">
@@ -380,13 +443,6 @@ const routes = {
                 </div>
             `;
 
-            // Add listeners after render
-            document.getElementById('btn-copy-plan')?.addEventListener('click', () => ExportTools.copyText(data.plan.map(p => `${p.day}: ${p.topics.join(', ')}`).join('\n')));
-            document.getElementById('btn-copy-plan-alt')?.addEventListener('click', () => ExportTools.copyText(data.plan.map(p => `${p.day}: ${p.topics.join(', ')}`).join('\n')));
-            document.getElementById('btn-download-txt')?.addEventListener('click', () => ExportTools.downloadTxt(data));
-            document.getElementById('btn-copy-checklist')?.addEventListener('click', () => ExportTools.copyText(data.checklist.map(r => `${r.title}: ${r.items.join(', ')}`).join('\n')));
-            document.getElementById('btn-copy-questions')?.addEventListener('click', () => ExportTools.copyText(data.questions.map(q => q.text).join('\n')));
-
             lucide.createIcons();
         }
     },
@@ -395,22 +451,6 @@ const routes = {
         render: () => {
             const container = document.getElementById('main-content');
             container.innerHTML = `<div class="card"><h2>Practice Hub</h2><p>Curated learning modules based on your analysis.</p></div>`;
-            lucide.createIcons();
-        }
-    },
-    'resources': {
-        title: 'Resources',
-        render: () => {
-            const container = document.getElementById('main-content');
-            container.innerHTML = `<div class="card"><h2>Resources</h2><p>Preparation guides and cheatsheets.</p></div>`;
-            lucide.createIcons();
-        }
-    },
-    'profile': {
-        title: 'User Profile',
-        render: () => {
-            const container = document.getElementById('main-content');
-            container.innerHTML = `<div class="card"><h2>Profile</h2><p>Manage your account settings.</p></div>`;
             lucide.createIcons();
         }
     }
@@ -452,6 +492,8 @@ function runAnalysis() {
 
     const extractedSkills = AnalysisEngine.extractSkills(jdText);
     const score = AnalysisEngine.calculateScore({ company, role, jdText, extractedSkills });
+    const companyIntel = AnalysisEngine.generateCompanyIntel(company, jdText);
+    const roundMapping = AnalysisEngine.generateRoundMapping(companyIntel, extractedSkills);
     const checklist = AnalysisEngine.generateChecklist(extractedSkills);
     const plan = AnalysisEngine.generatePlan(extractedSkills);
     const questions = AnalysisEngine.generateQuestions(extractedSkills);
@@ -459,10 +501,12 @@ function runAnalysis() {
     const entry = {
         id: 'anlyz_' + Date.now(),
         createdAt: new Date().toISOString(),
-        company: company || "Unknown Company",
+        company: company || "Unknown Venture",
         role: role || "Graduate Engineer Trainee",
         jdText,
         extractedSkills,
+        companyIntel,
+        roundMapping,
         baseReadinessScore: score,
         readinessScore: score,
         skillConfidenceMap: {},
@@ -498,7 +542,6 @@ function navigateTo(view) {
 }
 
 function loadRoute(routeId, data = null) {
-    const mainContent = document.getElementById('main-content');
     const pageTitle = document.getElementById('page-title');
 
     const route = routes[routeId];
@@ -524,3 +567,4 @@ window.viewResult = viewResult;
 window.toggleSkill = toggleSkill;
 window.ExportTools = ExportTools;
 window.navigateTo = navigateTo;
+window.HistoryManager = HistoryManager;
