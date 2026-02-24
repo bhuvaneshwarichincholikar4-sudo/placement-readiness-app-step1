@@ -107,7 +107,6 @@ const AnalysisEngine = {
             if (bank[s] && questions.length < 8) questions.push({ skill: s, text: bank[s] });
         });
 
-        // Fill up to 10
         const defaults = [
             "Tell me about your most challenging technical project.",
             "Explain a scenario where you had to debug a complex production issue.",
@@ -127,7 +126,12 @@ const AnalysisEngine = {
 const HistoryManager = {
     save(entry) {
         const history = this.getAll();
-        history.unshift(entry);
+        const index = history.findIndex(e => e.id === entry.id);
+        if (index !== -1) {
+            history[index] = entry;
+        } else {
+            history.unshift(entry);
+        }
         localStorage.setItem('placement_history', JSON.stringify(history));
     },
     getAll() {
@@ -138,13 +142,39 @@ const HistoryManager = {
     }
 };
 
+// --- Export Tools ---
+const ExportTools = {
+    copyText(text) {
+        navigator.clipboard.writeText(text).then(() => alert('Copied to clipboard!'));
+    },
+    downloadTxt(entry) {
+        const skills = Object.entries(entry.extractedSkills).map(([c, s]) => `${c}: ${s.join(', ')}`).join('\n');
+        const checklist = entry.checklist.map(r => `${r.title}:\n- ${r.items.join('\n- ')}`).join('\n\n');
+        const plan = entry.plan.map(p => `${p.day}: ${p.topics.join(', ')}`).join('\n');
+        const questions = entry.questions.map((q, i) => `${i + 1}. [${q.skill}] ${q.text}`).join('\n');
+
+        const content = `Placement Readiness Report: ${entry.company} - ${entry.role}\n` +
+            `Score: ${entry.readinessScore}%\n\n` +
+            `SKILLS:\n${skills}\n\n` +
+            `PREPARATION PLAN:\n${plan}\n\n` +
+            `ROUND-WISE CHECKLIST:\n${checklist}\n\n` +
+            `INTERVIEW QUESTIONS:\n${questions}`;
+
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Placement_Report_${entry.company.replace(/\s/g, '_')}.txt`;
+        a.click();
+    }
+};
+
 // --- Routing & UI ---
 const routes = {
     'dashboard-content': {
         title: 'Dashboard Overview',
         render: () => {
             const container = document.getElementById('main-content');
-            // Simplified dashboard for integration
             container.innerHTML = `
                 <div class="dashboard-grid">
                     <div class="card">
@@ -157,19 +187,6 @@ const routes = {
                         <p>Access your previous analysis reports.</p>
                         <button class="btn btn-secondary" onclick="loadRoute('history')">View History</button>
                     </div>
-                </div>
-            `;
-            lucide.createIcons();
-        }
-    },
-    'practice': {
-        title: 'Practice',
-        render: () => {
-            const container = document.getElementById('main-content');
-            container.innerHTML = `
-                <div class="card">
-                    <h2>Practice Problems</h2>
-                    <p>Solve coding, aptitude, and logical reasoning problems.</p>
                 </div>
             `;
             lucide.createIcons();
@@ -246,37 +263,55 @@ const routes = {
             if (!data) return loadRoute('dashboard-content');
             const container = document.getElementById('main-content');
 
+            const confidence = data.skillConfidenceMap || {};
+            const allSkillsList = Object.values(data.extractedSkills).flat();
+            const weakSkills = allSkillsList.filter(s => confidence[s] !== 'know').slice(0, 3);
+
             container.innerHTML = `
                 <div class="results-grid">
-                    <!-- Sidebar: Readiness & Skills -->
                     <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
                         <div class="card">
                             <h3 class="card-title">Readiness Score</h3>
-                            <div class="score-badge ${data.readinessScore > 75 ? 'score-high' : (data.readinessScore > 50 ? 'score-mid' : 'score-low')}" style="text-align: center; font-size: 2.5rem; padding: 24px;">
+                            <div id="live-score" class="score-badge ${data.readinessScore > 75 ? 'score-high' : (data.readinessScore > 50 ? 'score-mid' : 'score-low')}" style="text-align: center; font-size: 2.5rem; padding: 24px;">
                                 ${data.readinessScore}%
                             </div>
-                            <p style="font-size: 0.875rem; text-align: center; color: var(--color-text-secondary); margin-top: -8px;">
-                                Based on depth of JD and detected skills.
-                            </p>
+                            <div class="export-group">
+                                <button class="btn btn-secondary btn-icon-sm" id="btn-copy-plan">
+                                    <i data-lucide="copy"></i> Plan
+                                </button>
+                                <button class="btn btn-secondary btn-icon-sm" id="btn-download-txt">
+                                    <i data-lucide="download"></i> TXT
+                                </button>
+                            </div>
                         </div>
                         
                         <div class="card">
-                            <h3 class="card-title">Extracted Skills</h3>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h3 class="card-title" style="margin:0;">Self Assessment</h3>
+                                <span style="font-size:10px; color:var(--color-text-muted);">Toggle skills you know</span>
+                            </div>
                             ${Object.entries(data.extractedSkills).map(([cat, skills]) => `
                                 <div>
                                     <div class="skill-category-label">${cat}</div>
                                     <div class="skill-tag-group">
-                                        ${skills.map(s => `<span class="skill-tag">${s}</span>`).join('')}
+                                        ${skills.map(s => `
+                                            <span class="skill-tag ${confidence[s] === 'know' ? 'active' : ''}" 
+                                                  onclick='toggleSkill("${data.id}", "${s}")'>
+                                                ${s}
+                                            </span>
+                                        `).join('')}
                                     </div>
                                 </div>
                             `).join('')}
                         </div>
                     </div>
 
-                    <!-- Main Content: Plan & Checklist -->
                     <div style="display: flex; flex-direction: column; gap: var(--space-lg);">
                         <div class="card">
-                            <h3 class="card-title">Weekly Preparation Plan</h3>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h3 class="card-title" style="margin:0;">Weekly Preparation Plan</h3>
+                                <button class="btn btn-secondary btn-icon-sm" id="btn-copy-plan-alt">Copy Plan</button>
+                            </div>
                             <div class="plan-list">
                                 ${data.plan.map(p => `
                                     <div class="plan-day">
@@ -290,7 +325,10 @@ const routes = {
                         </div>
 
                         <div class="card">
-                            <h3 class="card-title">Round-wise Checklist</h3>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h3 class="card-title" style="margin:0;">Round-wise Checklist</h3>
+                                <button class="btn btn-secondary btn-icon-sm" id="btn-copy-checklist">Copy List</button>
+                            </div>
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);">
                                 ${data.checklist.map(round => `
                                     <div class="checklist-group">
@@ -309,7 +347,10 @@ const routes = {
                         </div>
 
                         <div class="card">
-                            <h3 class="card-title">Top 10 Interview Questions</h3>
+                            <div style="display:flex; justify-content:space-between; align-items:center;">
+                                <h3 class="card-title" style="margin:0;">Top 10 Interview Questions</h3>
+                                <button class="btn btn-secondary btn-icon-sm" id="btn-copy-questions">Copy Questions</button>
+                            </div>
                             <div class="question-list">
                                 ${data.questions.map((q, i) => `
                                     <div class="question-item">
@@ -322,9 +363,38 @@ const routes = {
                                 `).join('')}
                             </div>
                         </div>
+
+                        <div class="action-box">
+                            <div>
+                                <h3>Ready to start?</h3>
+                                <p>You have ${weakSkills.length} key areas to focus on:</p>
+                                <div class="weak-skills-list">
+                                    ${weakSkills.map(s => `<span class="weak-skill-chip">${s}</span>`).join('')}
+                                </div>
+                            </div>
+                            <button class="btn" style="background: white; color: var(--color-primary);" onclick="window.navigateTo('practice')">
+                                Start Day 1 Plan
+                            </button>
+                        </div>
                     </div>
                 </div>
             `;
+
+            // Add listeners after render
+            document.getElementById('btn-copy-plan')?.addEventListener('click', () => ExportTools.copyText(data.plan.map(p => `${p.day}: ${p.topics.join(', ')}`).join('\n')));
+            document.getElementById('btn-copy-plan-alt')?.addEventListener('click', () => ExportTools.copyText(data.plan.map(p => `${p.day}: ${p.topics.join(', ')}`).join('\n')));
+            document.getElementById('btn-download-txt')?.addEventListener('click', () => ExportTools.downloadTxt(data));
+            document.getElementById('btn-copy-checklist')?.addEventListener('click', () => ExportTools.copyText(data.checklist.map(r => `${r.title}: ${r.items.join(', ')}`).join('\n')));
+            document.getElementById('btn-copy-questions')?.addEventListener('click', () => ExportTools.copyText(data.questions.map(q => q.text).join('\n')));
+
+            lucide.createIcons();
+        }
+    },
+    'practice': {
+        title: 'Practice Modules',
+        render: () => {
+            const container = document.getElementById('main-content');
+            container.innerHTML = `<div class="card"><h2>Practice Hub</h2><p>Curated learning modules based on your analysis.</p></div>`;
             lucide.createIcons();
         }
     },
@@ -332,29 +402,43 @@ const routes = {
         title: 'Resources',
         render: () => {
             const container = document.getElementById('main-content');
-            container.innerHTML = `
-                <div class="card">
-                    <h2>Resources</h2>
-                    <p>Browse study materials, company-wise preparation guides, and interview tips.</p>
-                </div>
-            `;
+            container.innerHTML = `<div class="card"><h2>Resources</h2><p>Preparation guides and cheatsheets.</p></div>`;
             lucide.createIcons();
         }
     },
     'profile': {
-        title: 'Profile',
+        title: 'User Profile',
         render: () => {
             const container = document.getElementById('main-content');
-            container.innerHTML = `
-                <div class="card">
-                    <h2>User Profile</h2>
-                    <p>Manage your account settings and view your certificates.</p>
-                </div>
-            `;
+            container.innerHTML = `<div class="card"><h2>Profile</h2><p>Manage your account settings.</p></div>`;
             lucide.createIcons();
         }
     }
 };
+
+function toggleSkill(entryId, skillName) {
+    const entry = HistoryManager.get(entryId);
+    if (!entry) return;
+
+    if (!entry.skillConfidenceMap) entry.skillConfidenceMap = {};
+    if (entry.baseReadinessScore === undefined) entry.baseReadinessScore = entry.readinessScore;
+
+    if (entry.skillConfidenceMap[skillName] === 'know') {
+        entry.skillConfidenceMap[skillName] = 'practice';
+    } else {
+        entry.skillConfidenceMap[skillName] = 'know';
+    }
+
+    let dynamicScore = entry.baseReadinessScore;
+    Object.values(entry.extractedSkills).flat().forEach(s => {
+        if (entry.skillConfidenceMap[s] === 'know') dynamicScore += 2;
+        else dynamicScore -= 2;
+    });
+
+    entry.readinessScore = Math.max(0, Math.min(100, dynamicScore));
+    HistoryManager.save(entry);
+    loadRoute('results', entry);
+}
 
 function runAnalysis() {
     const company = document.getElementById('company').value;
@@ -379,7 +463,9 @@ function runAnalysis() {
         role: role || "Graduate Engineer Trainee",
         jdText,
         extractedSkills,
+        baseReadinessScore: score,
         readinessScore: score,
+        skillConfidenceMap: {},
         checklist,
         plan,
         questions
@@ -421,7 +507,6 @@ function loadRoute(routeId, data = null) {
         route.render(data);
     }
 
-    // Update active nav item
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
         const onclickAttr = item.getAttribute('onclick');
@@ -433,7 +518,9 @@ function loadRoute(routeId, data = null) {
     lucide.createIcons();
 }
 
-// Global hook for navigation
 window.loadRoute = loadRoute;
 window.runAnalysis = runAnalysis;
 window.viewResult = viewResult;
+window.toggleSkill = toggleSkill;
+window.ExportTools = ExportTools;
+window.navigateTo = navigateTo;
